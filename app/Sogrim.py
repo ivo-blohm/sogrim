@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 import geopandas as gpd
 import json
+import os
 
 st.set_page_config(
     page_title="Sogrim",
@@ -11,14 +12,15 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-@st.cache(allow_output_mutation=True)
+@st.cache_data
 def load_data():
-  with open('./app/data.json') as f:
+  data_path = os.path.join(os.path.dirname(__file__), 'data.json')
+  with open(data_path) as f:
     json_data = json.load(f)
     gpd_data = gpd.GeoDataFrame.from_features(json_data["features"]).set_index("gemeinde.NAME")
     return gpd_data
 
-@st.cache
+@st.cache_data
 def get_data_unit(feature):
   data_unit = {
       "BEVDICHTE_SQKM_2019": "p/sqkm",
