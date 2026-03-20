@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pong</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      font-family: 'Courier New', monospace;
+      color: #fff;
+      overflow: hidden;
+    }
+    #header {
+      font-size: 14px;
+      color: #888;
+      margin-bottom: 10px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+    #canvas {
+      border: 2px solid #333;
+      display: block;
+    }
+    #footer {
+      font-size: 12px;
+      color: #555;
+      margin-top: 10px;
+      letter-spacing: 1px;
+    }
+  </style>
+</head>
+<body>
+  <div id="header">PONG</div>
+  <canvas id="canvas" width="800" height="500"></canvas>
+  <div id="footer">W/S &mdash; Left Paddle &nbsp;|&nbsp; &uarr;/&darr; &mdash; Right Paddle &nbsp;|&nbsp; SPACE &mdash; Start/Pause</div>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    const W = canvas.width;
+    const H = canvas.height;
+
+    const PADDLE_W = 12;
+    const PADDLE_H = 80;
+    const BALL_SIZE = 10;
+    const PADDLE_SPEED = 5;
+    const WINNING_SCORE = 7;
+
+    const state = {
+      paused: true,
+      started: false,
+      gameOver: false,
+      winner: null,
+    };
+
+    const scores = { left: 0, right: 0 };
+
+    const leftPaddle = {
+      x: 20,
+      y: H / 2 - PADDLE_H / 2,
+      dy: 0,
+    };
+
+    const rightPaddle = {
+      x: W - 20 - PADDLE_W,
+      y: H / 2 - PADDLE_H / 2,
+      dy: 0,
+    };
+
+    const ball = {
+      x: W / 2,
+      y: H / 2,
+      vx: 0,
+      vy: 0,
+      speed: 5,
+    };
+
+    const keys = {};
+
+    function launchBall() {
+      ball.x = W / 2;
+      ball.y = H / 2;
+      const angle = (Math.random() * 60 - 30) * (Math.PI / 180);
+      const dir = Math.random() < 0.5 ? 1 : -1;
+      ball.speed = 5;
+      ball.vx = dir * ball.speed * Math.cos(angle);
+      ball.vy = ball.speed * Math.sin(angle);
+    }
+
+    function resetPaddles() {
+      leftPaddle.y = H / 2 - PADDLE_H / 2;
+      rightPaddle.y = H / 2 - PADDLE_H / 2;
+    }
+
+    function resetGame() {
+      scores.left = 0;
+      scores.right = 0;
+      state.gameOver = false;
+      state.winner = null;
+      state.paused = true;
+      state.started = false;
+      resetPaddles();
+      ball.x = W / 2;
+      ball.y = H / 2;
+      ball.vx = 0;
+      ball.vy = 0;
+    }
+
+    window.addEventListener('keydown', (e) => {
+      keys[e.code] = true;
+
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (state.gameOver) {
+          resetGame();
+          return;
+        }
+        if (!state.started) {
+          state.started = true;
+          state.paused = false;
+          launchBall();
+        } else {
+          state.paused = !state.paused;
+        }
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      keys[e.code] = false;
+    });
+
+    function clampPaddle(paddle) {
+      if (paddle.y < 0) paddle.y = 0;
+      if (paddle.y + PADDLE_H > H) paddle.y = H - PADDLE_H;
+    }
+
+    function updatePaddles() {
+      if (keys['KeyW']) leftPaddle.y -= PADDLE_SPEED;
+      if (keys['KeyS']) leftPaddle.y += PADDLE_SPEED;
+      if (keys['ArrowUp']) rightPaddle.y -= PADDLE_SPEED;
+      if (keys['ArrowDown']) rightPaddle.y += PADDLE_SPEED;
+      clampPaddle(leftPaddle);
+      clampPaddle(rightPaddle);
+    }
+
+    function ballHitsPaddle(paddle) {
+      return (
+        ball.x - BALL_SIZE / 2 < paddle.x + PADDLE_W &&
+        ball.x + BALL_SIZE / 2 > paddle.x &&
+        ball.y - BALL_SIZE / 2 < paddle.y + PADDLE_H &&
+        ball.y + BALL_SIZE / 2 > paddle.y
+      );
+    }
+
+    function reflect(paddle) {
+      const hitPos = (ball.y - (paddle.y + PADDLE_H / 2)) / (PADDLE_H / 2);
+      const maxAngle = 60 * (Math.PI / 180);
+      const angle = hitPos * maxAngle;
+      ball.speed = Math.min(ball.speed + 0.3, 14);
+      const dir = ball.vx < 0 ? 1 : -1;
+      ball.vx = dir * ball.speed * Math.cos(angle);
+      ball.vy = ball.speed * Math.sin(angle);
+    }
+
+    function updateBall() {
+      ball.x += ball.vx;
+      ball.y += ball.vy;
+
+      // Top/bottom wall bounce
+      if (ball.y - BALL_SIZE / 2 <= 0) {
+        ball.y = BALL_SIZE / 2;
+        ball.vy = Math.abs(ball.vy);
+      }
+      if (ball.y + BALL_SIZE / 2 >= H) {
+        ball.y = H - BALL_SIZE / 2;
+        ball.vy = -Math.abs(ball.vy);
+      }
+
+      // Paddle collisions
+      if (ball.vx < 0 && ballHitsPaddle(leftPaddle)) {
+        ball.x = leftPaddle.x + PADDLE_W + BALL_SIZE / 2;
+        reflect(leftPaddle);
+      }
+      if (ball.vx > 0 && ballHitsPaddle(rightPaddle)) {
+        ball.x = rightPaddle.x - BALL_SIZE / 2;
+        reflect(rightPaddle);
+      }
+
+      // Scoring
+      if (ball.x + BALL_SIZE / 2 < 0) {
+        scores.right++;
+        checkWin('Right');
+      } else if (ball.x - BALL_SIZE / 2 > W) {
+        scores.left++;
+        checkWin('Left');
+      }
+    }
+
+    function checkWin(who) {
+      if (scores.left >= WINNING_SCORE || scores.right >= WINNING_SCORE) {
+        state.gameOver = true;
+        state.winner = who;
+        state.paused = true;
+      } else {
+        resetPaddles();
+        state.paused = true;
+        state.started = false;
+        ball.x = W / 2;
+        ball.y = H / 2;
+        ball.vx = 0;
+        ball.vy = 0;
+      }
+    }
+
+    // --- Drawing ---
+
+    function drawRect(x, y, w, h, color = '#fff') {
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y, w, h);
+    }
+
+    function drawBall() {
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, BALL_SIZE / 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawNet() {
+      ctx.setLineDash([10, 10]);
+      ctx.strokeStyle = '#333';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(W / 2, 0);
+      ctx.lineTo(W / 2, H);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    function drawScores() {
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 48px Courier New';
+      ctx.textAlign = 'center';
+      ctx.fillText(scores.left, W / 4, 60);
+      ctx.fillText(scores.right, (3 * W) / 4, 60);
+    }
+
+    function drawOverlay(lines, subColor = '#aaa') {
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillRect(0, 0, W, H);
+
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 36px Courier New';
+      ctx.fillText(lines[0], W / 2, H / 2 - 20);
+
+      if (lines[1]) {
+        ctx.fillStyle = subColor;
+        ctx.font = '18px Courier New';
+        ctx.fillText(lines[1], W / 2, H / 2 + 20);
+      }
+      if (lines[2]) {
+        ctx.fillStyle = '#555';
+        ctx.font = '14px Courier New';
+        ctx.fillText(lines[2], W / 2, H / 2 + 50);
+      }
+    }
+
+    function draw() {
+      // Background
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, W, H);
+
+      drawNet();
+      drawScores();
+      drawRect(leftPaddle.x, leftPaddle.y, PADDLE_W, PADDLE_H);
+      drawRect(rightPaddle.x, rightPaddle.y, PADDLE_W, PADDLE_H);
+
+      if (state.started && !state.paused) {
+        drawBall();
+      } else {
+        // Show ball at center when waiting
+        ctx.fillStyle = '#444';
+        ctx.beginPath();
+        ctx.arc(W / 2, H / 2, BALL_SIZE / 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      if (state.gameOver) {
+        drawOverlay([
+          `${state.winner} Player Wins!`,
+          `First to ${WINNING_SCORE} — well played.`,
+          'Press SPACE to play again',
+        ], '#ffdd57');
+      } else if (!state.started) {
+        drawOverlay([
+          'PONG',
+          'Press SPACE to serve',
+          scores.left === 0 && scores.right === 0
+            ? 'W/S  vs  ↑/↓'
+            : '',
+        ]);
+      } else if (state.paused) {
+        drawOverlay(['PAUSED', 'Press SPACE to resume']);
+      }
+    }
+
+    function loop() {
+      if (!state.paused) {
+        updatePaddles();
+        updateBall();
+      } else if (!state.gameOver) {
+        // Still allow paddle movement while paused/waiting for serve
+        updatePaddles();
+      }
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    loop();
+  </script>
+</body>
+</html>
